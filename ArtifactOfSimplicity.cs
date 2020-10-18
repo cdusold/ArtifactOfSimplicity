@@ -5,9 +5,8 @@ using UnityEngine;
 using UnityEngine.Networking;
 using RoR2;
 using MoreArtifacts;
-using R2API;
 using Phedg1Studios.ItemDropAPIFixes;
-using System;
+using R2API;
 
 namespace ArtifactOfSimplicity {
 
@@ -17,6 +16,8 @@ namespace ArtifactOfSimplicity {
     [BepInPlugin(ModGUID, ModName, ModVersion)]
     [BepInDependency("com.Phedg1Studios.ItemDropAPIFixes")]
     [BepInDependency(MoreArtifacts.MoreArtifacts.ModGUID, MoreArtifacts.MoreArtifacts.ModVersion)]
+    [R2API.Utils.R2APISubmoduleDependency("ItemDropAPI")]
+    [R2API.Utils.R2APISubmoduleDependency("ItemDropAPIFixes")]
     public class ArtifactOfSimplicityMod : BaseUnityPlugin {
         public const string ModGUID = "com.poik.simplicityartifact";
         public const string ModName = "Artifact of Simplicity";
@@ -70,10 +71,13 @@ namespace ArtifactOfSimplicity {
         private static List<PickupIndex> equipItems = new List<PickupIndex>();
         static public List<PickupIndex> runItems = new List<PickupIndex>();
         static public List<PickupIndex> currentItems = new List<PickupIndex>();
+        static public List<KeyValuePair<ItemIndex, ItemTier>> currentItemsKVP = new List<KeyValuePair<ItemIndex, ItemTier>>();
+        static public List<EquipmentIndex> currentEquip = new List<EquipmentIndex>();
+        static private Run currentRun = null;
 
         public static void Init() {
             // initialize stuff here, like fields, properties, or things that should run only one time
-            RunArtifactManager.onArtifactEnabledGlobal += OnArtifactEnabled;
+            RunArtifactManager.onArtifactEnabledGlobal += OnArtifactEnabled; 
             RunArtifactManager.onArtifactDisabledGlobal += OnArtifactDisabled;
         }
 
@@ -112,31 +116,51 @@ namespace ArtifactOfSimplicity {
         {
             System.Random rnd = new System.Random();
             int i = 0;
+            R2API.ItemDropAPI.RemoveFromDefaultByTier(currentItemsKVP.ToArray());
+            R2API.ItemDropAPI.RemoveFromDefaultEquipment(currentEquip.ToArray());
+            currentItemsKVP.Clear();
+            currentEquip.Clear();
             foreach (PickupIndex item in tier1Items.OrderBy(x => rnd.Next()).Take(2))
             {
                 currentItems[i] = item;
                 ArtifactOfSimplicityMod.Logger.LogInfo(item);
+                ItemIndex itemIndex = PickupCatalog.GetPickupDef(item).itemIndex;
+                currentItemsKVP.Add(new KeyValuePair<ItemIndex, ItemTier>(itemIndex, ItemTier.Tier1));
             }
             foreach (PickupIndex item in tier2Items.OrderBy(x => rnd.Next()).Take(2))
             {
                 currentItems[i] = item;
                 ArtifactOfSimplicityMod.Logger.LogInfo(item);
+                ItemIndex itemIndex = PickupCatalog.GetPickupDef(item).itemIndex;
+                currentItemsKVP.Add(new KeyValuePair<ItemIndex, ItemTier>(itemIndex, ItemTier.Tier2));
             }
             foreach (PickupIndex item in tier3Items.OrderBy(x => rnd.Next()).Take(2))
             {
                 currentItems[i] = item;
                 ArtifactOfSimplicityMod.Logger.LogInfo(item);
+                ItemIndex itemIndex = PickupCatalog.GetPickupDef(item).itemIndex;
+                currentItemsKVP.Add(new KeyValuePair<ItemIndex, ItemTier>(itemIndex, ItemTier.Tier3));
             }
-            foreach (PickupIndex item in runItems.OrderBy(x => rnd.Next()).Take(2))
+            foreach (PickupIndex item in lunarItems.OrderBy(x => rnd.Next()).Take(2))
             {
                 currentItems[i] = item;
                 ArtifactOfSimplicityMod.Logger.LogInfo(item);
+                ItemIndex itemIndex = PickupCatalog.GetPickupDef(item).itemIndex;
+                currentItemsKVP.Add(new KeyValuePair<ItemIndex, ItemTier>(itemIndex, ItemTier.Lunar));
             }
             foreach (PickupIndex item in equipItems.OrderBy(x => rnd.Next()).Take(2))
             {
                 currentItems[i] = item;
                 ArtifactOfSimplicityMod.Logger.LogInfo(item);
+                EquipmentIndex equipmentIndex = PickupCatalog.GetPickupDef(item).equipmentIndex;
+                currentEquip.Add(equipmentIndex);
             }
+            ItemDropAPIFixes.playerItems = currentItems;
+            ItemDropAPIFixes.monsterItems = currentItems;
+            R2API.ItemDropAPI.AddToDefaultByTier(currentItemsKVP.ToArray());
+            R2API.ItemDropAPI.AddToDefaultEquipment(currentEquip.ToArray());
+            ItemDropAPIFixes.itemDropAPIFixes.SetHooks();
+            // RoR2.Run.BuildDropTable(); //?!?
         }
 
         private static void SetDropList()
@@ -175,6 +199,16 @@ namespace ArtifactOfSimplicity {
                         tier4count++;
                         currentItems.Insert(tier1count+tier2count+tier3count, item);
                         //ArtifactOfSimplicityMod.Logger.LogInfo(item);
+                        if (EquipmentCatalog.allEquipment.Contains(itemDef.equipmentIndex))
+                        {
+                            EquipmentIndex equipIndex = itemDef.equipmentIndex;
+                            currentEquip.Add(equipIndex);
+                        }
+                        else
+                        {
+                            ItemIndex itemIndex = itemDef.itemIndex;
+                            currentItemsKVP.Add(new KeyValuePair<ItemIndex, ItemTier>(itemIndex, ItemTier.Lunar));
+                        }
                     }
                     lunarItems.Add(item);
                 } 
@@ -190,6 +224,8 @@ namespace ArtifactOfSimplicity {
                         tier5count++;
                         currentItems.Insert(tier1count + tier2count + tier3count + tier4count, item);
                         //ArtifactOfSimplicityMod.Logger.LogInfo(item);
+                        EquipmentIndex equipIndex = itemDef.equipmentIndex;
+                        currentEquip.Add(equipIndex);
                     }
                     equipItems.Add(item);
                 }
@@ -210,6 +246,8 @@ namespace ArtifactOfSimplicity {
                         tier1count++;
                         currentItems.Insert(0, item);
                         //ArtifactOfSimplicityMod.Logger.LogInfo(item);
+                        ItemIndex itemIndex = itemDef.itemIndex;
+                        currentItemsKVP.Add(new KeyValuePair<ItemIndex, ItemTier>(itemIndex, ItemTier.Tier1));
                     }
                     tier1Items.Add(item);
                 }
@@ -220,6 +258,8 @@ namespace ArtifactOfSimplicity {
                         tier2count++;
                         currentItems.Insert(tier1count, item);
                         //ArtifactOfSimplicityMod.Logger.LogInfo(item);
+                        ItemIndex itemIndex = itemDef.itemIndex;
+                        currentItemsKVP.Add(new KeyValuePair<ItemIndex, ItemTier>(itemIndex, ItemTier.Tier2));
                     }
                     tier2Items.Add(item);
                 }
@@ -230,6 +270,8 @@ namespace ArtifactOfSimplicity {
                         tier3count++;
                         currentItems.Insert(tier1count + tier2count, item);
                         //ArtifactOfSimplicityMod.Logger.LogInfo(item);
+                        ItemIndex itemIndex = itemDef.itemIndex;
+                        currentItemsKVP.Add(new KeyValuePair<ItemIndex, ItemTier>(itemIndex, ItemTier.Tier3));
                     }
                     tier3Items.Add(item);
                 }
